@@ -97,4 +97,6 @@ El vehículo debe existir ya en el **inventario del servidor** para que `POST /c
 
 ## Autores / curso
 
-Completar con nombres del grupo y datos del curso de **Patrones de diseño orientado a objetos**.
+Juan Andrés Burgos
+Juan José Arcos 
+Yeraldi Betancourth Hurtado
