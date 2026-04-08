@@ -1,4 +1,4 @@
-# AutoCar — Plataforma de alquiler (taller calificable)
+# AutoCar — Plataforma de alquiler 
 
 Proyecto del taller **“Una historia de diseño con patrones creacionales”**: inventario de vehículos eléctricos/híbridos y contratos de alquiler con accesorios opcionales.
 
