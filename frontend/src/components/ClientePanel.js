@@ -1,242 +1,112 @@
-import { useState } from "react";
-import { createContrato } from "../services/api";
-import {
-  DESCUENTO_LARGA_DURACION_PORCENTAJE,
-  PLANES,
-  UMBRAL_DIAS_DESCUENTO,
-} from "../utils/constants";
+import { useMemo, useState } from "react";
+import { DESCUENTO_LARGA_DURACION_PORCENTAJE, PLANES, UMBRAL_DIAS_DESCUENTO } from "../utils/constants";
 
-function calcularDescuento(dias) {
+function descuentoDias(dias) {
   return dias > UMBRAL_DIAS_DESCUENTO ? DESCUENTO_LARGA_DURACION_PORCENTAJE : 0;
 }
 
-export default function ClientePanel({ vehicles, contracts, onContractsChange }) {
-  const [nombre, setNombre] = useState("");
-  const [documento, setDocumento] = useState("");
-  const [placaSel, setPlacaSel] = useState("");
+export default function ClientePanel({ vehicles, contracts, onCreateContract }) {
+  const [clienteNombre, setClienteNombre] = useState("");
+  const [clienteDocumento, setClienteDocumento] = useState("");
+  const [placa, setPlaca] = useState("");
   const [plan, setPlan] = useState("diario");
-  const [dias, setDias] = useState("7");
+  const [diasAlquiler, setDiasAlquiler] = useState("7");
   const [gps, setGps] = useState(false);
   const [seguro, setSeguro] = useState(false);
   const [cargador, setCargador] = useState(false);
-  const [mensaje, setMensaje] = useState(null);
-  const [servidorMsg, setServidorMsg] = useState("");
+  const [mensaje, setMensaje] = useState("");
 
-  const diasNum = parseInt(dias, 10);
-  const descuentoPrevisto = Number.isFinite(diasNum) ? calcularDescuento(diasNum) : 0;
+  const dias = Number(diasAlquiler || 0);
+  const descuento = useMemo(() => descuentoDias(dias), [dias]);
+  const statusClass = {
+    pendiente: "bg-slate-700 text-slate-100",
+    aceptado: "bg-emerald-700 text-emerald-100",
+    declinado: "bg-rose-700 text-rose-100",
+    cancelado: "bg-rose-700 text-rose-100",
+  };
 
-  const vehiculoSel = vehicles.find((v) => v.placa === placaSel);
-
-  const registrarContrato = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    setMensaje(null);
-    setServidorMsg("");
-
-    if (!nombre.trim() || !documento.trim()) {
-      setMensaje({ tipo: "error", texto: "Nombre y documento del cliente son obligatorios." });
+    const vehiculo = vehicles.find((v) => v.placa === placa);
+    if (!vehiculo) {
+      setMensaje("Selecciona un vehiculo valido.");
       return;
     }
-    if (!vehiculoSel) {
-      setMensaje({ tipo: "error", texto: "Selecciona un vehículo de la flota." });
-      return;
-    }
-    if (!Number.isFinite(diasNum) || diasNum <= 0) {
-      setMensaje({ tipo: "error", texto: "Indica una duración en días mayor a cero." });
-      return;
-    }
-
-    const porcentajeDescuento = calcularDescuento(diasNum);
-    const contrato = {
-      id: crypto.randomUUID(),
-      creadoEn: new Date().toISOString(),
-      clienteNombre: nombre.trim(),
-      clienteDocumento: documento.trim(),
-      placa: vehiculoSel.placa,
-      tipoVehiculo: vehiculoSel.tipo,
-      autonomia: vehiculoSel.autonomia,
+    const payload = {
+      clienteNombre,
+      clienteDocumento,
+      placa,
+      tipoVehiculo: vehiculo.tipo,
       plan,
-      diasAlquiler: diasNum,
-      porcentajeDescuento,
+      diasAlquiler: dias,
+      porcentajeDescuento: descuento,
       gps,
       seguro,
       cargador,
     };
-
-    const todos = [contrato, ...contracts];
-    onContractsChange(todos);
-
-    setMensaje({
-      tipo: "ok",
-      texto: `Contrato guardado localmente. Descuento aplicado: ${porcentajeDescuento}%.`,
-    });
-
-    try {
-      await createContrato({
-        clienteNombre: contrato.clienteNombre,
-        clienteDocumento: contrato.clienteDocumento,
-        placaVehiculo: contrato.placa,
-        plan: contrato.plan,
-        diasAlquiler: contrato.diasAlquiler,
-        gps: contrato.gps,
-        seguro: contrato.seguro,
-        cargador: contrato.cargador,
-      });
-      setServidorMsg("Contrato reproducido en el backend vía patrón Builder.");
-    } catch {
-      setServidorMsg(
-        "No se pudo replicar en el servidor (inventario del backend puede no tener esa placa). El contrato sigue en tu navegador."
-      );
-    }
+    await onCreateContract(payload);
+    setMensaje("Contrato enviado para revision.");
   };
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-white mb-1">Nuevo contrato de alquiler</h2>
-        <p className="text-sm text-slate-400 mb-4">
-          Datos obligatorios: cliente, vehículo y plan. Accesorios opcionales: GPS, seguro, cargador portátil. Regla del
-          taller: más de {UMBRAL_DIAS_DESCUENTO} días → {DESCUENTO_LARGA_DURACION_PORCENTAJE}% de descuento.
+    <div className="space-y-6">
+      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl shadow-emerald-900/10">
+        <h2 className="text-lg font-semibold">Panel cliente</h2>
+        <p className="text-sm text-slate-400">
+          Crea tu contrato de alquiler y revisa su estado en tiempo real.
         </p>
-
-        <form onSubmit={registrarContrato} className="grid gap-4 lg:grid-cols-2">
-          <label className="block text-sm">
-            <span className="text-slate-400">Cliente</span>
-            <input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-white"
-              placeholder="Nombre completo"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-slate-400">Documento</span>
-            <input
-              value={documento}
-              onChange={(e) => setDocumento(e.target.value)}
-              className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-white"
-              placeholder="ID / NIT"
-            />
-          </label>
-
-          <label className="block text-sm">
-            <span className="text-slate-400">Vehículo</span>
-            <select
-              value={placaSel}
-              onChange={(e) => setPlacaSel(e.target.value)}
-              className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-white"
-            >
-              <option value="">— Seleccionar —</option>
-              {vehicles.map((v) => (
-                <option key={v.placa} value={v.placa}>
-                  {v.placa} · {v.tipo} · {v.autonomia} km
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block text-sm">
-            <span className="text-slate-400">Plan</span>
-            <select
-              value={plan}
-              onChange={(e) => setPlan(e.target.value)}
-              className="mt-1 w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-white"
-            >
-              {PLANES.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block text-sm lg:col-span-2">
-            <span className="text-slate-400">Duración (días)</span>
-            <input
-              type="number"
-              min="1"
-              value={dias}
-              onChange={(e) => setDias(e.target.value)}
-              className="mt-1 w-full max-w-xs rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-white"
-            />
-            <span className="mt-2 block text-sm text-emerald-400/90">
-              Descuento estimado por política AutoCar: {descuentoPrevisto}%
+        <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-2">
+          <input className="rounded bg-slate-950 border border-slate-700 px-3 py-2" placeholder="Nombre" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} />
+          <input className="rounded bg-slate-950 border border-slate-700 px-3 py-2" placeholder="Documento" value={clienteDocumento} onChange={(e) => setClienteDocumento(e.target.value)} />
+          <label className="md:col-span-2">
+            <span className="text-sm text-slate-300 flex items-center gap-2 mb-1">
+              Vehiculo
+              <span className="group relative inline-flex items-center justify-center w-5 h-5 rounded-full border border-slate-500 text-xs cursor-help">
+                ?
+                <span className="absolute left-1/2 -translate-x-1/2 top-7 w-64 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-[11px] text-slate-300 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 z-10">
+                  La autonomia es la distancia aproximada (en kilometros) que recorre el vehiculo
+                  con una carga o ciclo de energia.
+                </span>
+              </span>
             </span>
+            <select className="rounded w-full bg-slate-950 border border-slate-700 px-3 py-2" value={placa} onChange={(e) => setPlaca(e.target.value)}>
+              <option value="">Selecciona vehiculo</option>
+            {vehicles.map((v) => (
+              <option key={v.id} value={v.placa}>{v.placa} - {v.tipo}</option>
+            ))}
+            </select>
           </label>
-
-          <fieldset className="lg:col-span-2 flex flex-wrap gap-4 text-sm">
-            <legend className="text-slate-400 mb-2">Accesorios opcionales</legend>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={gps} onChange={(e) => setGps(e.target.checked)} className="rounded border-slate-600" />
-              GPS
-            </label>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={seguro}
-                onChange={(e) => setSeguro(e.target.checked)}
-                className="rounded border-slate-600"
-              />
-              Seguro
-            </label>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={cargador}
-                onChange={(e) => setCargador(e.target.checked)}
-                className="rounded border-slate-600"
-              />
-              Cargador portátil
-            </label>
-          </fieldset>
-
-          <div className="lg:col-span-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-6 py-2.5"
-            >
-              Guardar contrato (local)
-            </button>
-          </div>
+          <select className="rounded bg-slate-950 border border-slate-700 px-3 py-2" value={plan} onChange={(e) => setPlan(e.target.value)}>
+            {PLANES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+          <input className="rounded bg-slate-950 border border-slate-700 px-3 py-2" type="number" min="1" value={diasAlquiler} onChange={(e) => setDiasAlquiler(e.target.value)} />
+          <div className="text-sm text-emerald-300">Descuento: {descuento}%</div>
+          <label><input type="checkbox" checked={gps} onChange={(e) => setGps(e.target.checked)} /> GPS</label>
+          <label><input type="checkbox" checked={seguro} onChange={(e) => setSeguro(e.target.checked)} /> Seguro</label>
+          <label><input type="checkbox" checked={cargador} onChange={(e) => setCargador(e.target.checked)} /> Cargador</label>
+          <button className="rounded bg-emerald-600 hover:bg-emerald-500 px-4 py-2 md:col-span-2">Guardar contrato</button>
         </form>
-
-        {mensaje && (
-          <p
-            className={`mt-4 text-sm rounded-lg px-3 py-2 ${
-              mensaje.tipo === "ok" ? "bg-emerald-950/80 text-emerald-200" : "bg-red-950/60 text-red-200"
-            }`}
-          >
-            {mensaje.texto}
-          </p>
-        )}
-        {servidorMsg && <p className="mt-2 text-sm text-slate-400">{servidorMsg}</p>}
+        {mensaje && <p className="mt-3 text-sm text-emerald-300">{mensaje}</p>}
       </section>
 
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Mis contratos registrados ({contracts.length})</h2>
-        {contracts.length === 0 ? (
-          <p className="text-slate-500 text-sm">Aún no hay contratos en este navegador.</p>
-        ) : (
-          <ul className="space-y-3">
-            {contracts.map((c) => (
-              <li
-                key={c.id}
-                className="rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300"
-              >
-                <div className="flex flex-wrap justify-between gap-2 text-white font-medium">
-                  <span>{c.clienteNombre}</span>
-                  <span className="text-slate-400 font-normal">{new Date(c.creadoEn).toLocaleString()}</span>
-                </div>
-                <p className="mt-1">
-                  {c.placa} · Plan {c.plan} · {c.diasAlquiler} días
-                  {c.porcentajeDescuento > 0 ? ` · Descuento ${c.porcentajeDescuento}%` : ""}
-                </p>
-                <p className="text-slate-500 text-xs mt-1">
-                  GPS {c.gps ? "Sí" : "No"} · Seguro {c.seguro ? "Sí" : "No"} · Cargador {c.cargador ? "Sí" : "No"}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <h3 className="font-semibold">Mis contratos ({contracts.length})</h3>
+        <ul className="mt-4 space-y-2">
+          {contracts.map((c) => (
+            <li key={c.id} className="rounded border border-slate-800 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p>{c.placa} - {c.plan} - {c.diasAlquiler} dias</p>
+                <span
+                  className={`rounded px-2 py-1 text-xs capitalize ${
+                    statusClass[c.status || "pendiente"] || statusClass.pendiente
+                  }`}
+                >
+                  {c.status || "pendiente"}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );
